@@ -1,0 +1,207 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HelloFresh",
+        "description": "Choose how to connect your HelloFresh account. See the [documentation]({documentation_url}) for details.",
+        "menu_options": {
+          "magic_link": "Magic link (recommended)",
+          "token": "Access token (advanced)"
+        }
+      },
+      "magic_link": {
+        "title": "HelloFresh magic link",
+        "description": "Enter the email for your HelloFresh account and choose your country. A magic link will be sent to that inbox.",
+        "data": {
+          "email": "Email",
+          "country": "Country"
+        }
+      },
+      "magic_link_confirm": {
+        "title": "Confirm magic link",
+        "description": "Open the email sent to {email}, then paste the full magic link URL here (preferred). You can also paste only the code from the link.",
+        "data": {
+          "magic_link": "Magic link URL",
+          "code": "Code from email link"
+        }
+      },
+      "token": {
+        "title": "HelloFresh tokens",
+        "description": "Paste a valid HelloFresh access token (and refresh token if available).",
+        "data": {
+          "email": "Email (optional)",
+          "country": "Country",
+          "access_token": "Access token",
+          "refresh_token": "Refresh token"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure HelloFresh",
+        "description": "Update your email or country. A new magic link will be sent to complete the change.",
+        "data": {
+          "email": "Email",
+          "country": "Country"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate HelloFresh",
+        "description": "The stored tokens for {email} are no longer valid. Confirm your email and country to receive a new magic link.",
+        "data": {
+          "email": "Email",
+          "country": "Country"
+        }
+      }
+    },
+    "error": {
+      "auth": "Authentication failed. Check the magic link, code, or tokens and try again.",
+      "connection": "Unable to connect to HelloFresh.",
+      "invalid_auth_input": "Provide either a magic link URL or a code from the email.",
+      "unknown": "Unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This HelloFresh account is already configured.",
+      "reauth_successful": "Reauthentication successful.",
+      "reconfigure_successful": "Reconfiguration successful.",
+      "unique_id_mismatch": "The authenticated account does not match this config entry."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HelloFresh options",
+        "description": "Customize how often account data is refreshed.",
+        "data": {
+          "update_interval_hours": "Update interval (hours)"
+        },
+        "data_description": {
+          "update_interval_hours": "How often to refresh data from HelloFresh (0.25 to 24 hours)"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "authentication_failed": {
+      "message": "Authentication failed during data update."
+    },
+    "update_failed": {
+      "message": "Failed to update data from HelloFresh."
+    },
+    "service_auth_failed": {
+      "message": "HelloFresh authentication failed for this service call."
+    },
+    "service_recipe_failed": {
+      "message": "Unable to fetch the requested recipe."
+    },
+    "service_search_failed": {
+      "message": "Unable to search HelloFresh recipes."
+    },
+    "service_entry_not_found": {
+      "message": "The specified HelloFresh config entry was not found."
+    },
+    "service_no_entries": {
+      "message": "No HelloFresh config entries are loaded."
+    },
+    "service_multiple_entries": {
+      "message": "Multiple HelloFresh accounts are configured. Provide config_entry_id."
+    },
+    "service_entry_not_ready": {
+      "message": "The HelloFresh config entry is not ready."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "account_credit": {
+        "name": "Account credit"
+      },
+      "adults": {
+        "name": "Adults"
+      },
+      "children": {
+        "name": "Children"
+      },
+      "total_people": {
+        "name": "Total people"
+      },
+      "dietary_exclusions": {
+        "name": "Dietary exclusions"
+      },
+      "next_delivery_week": {
+        "name": "Next delivery week"
+      },
+      "selected_meals": {
+        "name": "Selected meals"
+      },
+      "available_meals": {
+        "name": "Available meals"
+      },
+      "cart_grand_total": {
+        "name": "Cart total"
+      },
+      "subscription_status": {
+        "name": "Subscription status"
+      },
+      "subscription_plan": {
+        "name": "Subscription plan"
+      },
+      "active_subscription_id": {
+        "name": "Active subscription ID"
+      }
+    },
+    "binary_sensor": {
+      "api_connectivity": {
+        "name": "API connection"
+      },
+      "meals_ready": {
+        "name": "Meals ready"
+      }
+    },
+    "button": {
+      "refresh": {
+        "name": "Refresh"
+      }
+    },
+    "calendar": {
+      "deliveries": {
+        "name": "Deliveries"
+      }
+    }
+  },
+  "services": {
+    "get_recipe": {
+      "name": "Get recipe",
+      "description": "Fetch full HelloFresh recipe details by recipe id.",
+      "fields": {
+        "recipe_id": {
+          "name": "Recipe ID",
+          "description": "HelloFresh recipe identifier"
+        },
+        "config_entry_id": {
+          "name": "Config entry ID",
+          "description": "Optional config entry when multiple accounts are configured"
+        }
+      }
+    },
+    "search_recipes": {
+      "name": "Search recipes",
+      "description": "Search the HelloFresh recipe catalog by keyword.",
+      "fields": {
+        "query": {
+          "name": "Query",
+          "description": "Keyword search string"
+        },
+        "take": {
+          "name": "Take",
+          "description": "Maximum number of recipes to return"
+        },
+        "skip": {
+          "name": "Skip",
+          "description": "Pagination offset"
+        },
+        "config_entry_id": {
+          "name": "Config entry ID",
+          "description": "Optional config entry when multiple accounts are configured"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../schemas/yaml/services_schema.yaml
+
+get_recipe:
+  name: Get recipe
+  description: >
+    Fetch full HelloFresh recipe details by recipe id.
+    Returns structured data for scripts, automations, and AI tools.
+  fields:
+    recipe_id:
+      name: Recipe ID
+      description: HelloFresh recipe identifier
+      required: true
+      example: "64f1a2b3c4d5e6f7a8b9c0d1"
+      selector:
+        text:
+    config_entry_id:
+      name: Config entry ID
+      description: >
+        Optional config entry when multiple HelloFresh accounts are configured
+      required: false
+      selector:
+        config_entry:
+          integration: hellofresh
+
+search_recipes:
+  name: Search recipes
+  description: >
+    Search the HelloFresh recipe catalog by keyword.
+    Returns structured results for scripts, automations, and AI tools.
+  fields:
+    query:
+      name: Query
+      description: Keyword search string (for example pasta, chicken, tacos)
+      required: true
+      example: "pasta"
+      selector:
+        text:
+    take:
+      name: Take
+      description: Maximum number of recipes to return
+      required: false
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 50
+          mode: box
+    skip:
+      name: Skip
+      description: Pagination offset
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          mode: box
+    config_entry_id:
+      name: Config entry ID
+      description: >
+        Optional config entry when multiple HelloFresh accounts are configured
+      required: false
+      selector:
+        config_entry:
+          integration: hellofresh
