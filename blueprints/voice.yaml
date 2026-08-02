@@ -8,8 +8,27 @@ blueprint:
     Mod) and answer follow-up questions about the recipe currently on screen.
 
 
+    Assist passes the current `assist_satellite` entity. The script derives the Ava
+    ESPHome action
+    `esphome.<device>_webview_command` from that entity id, for example:
+
+
+    `assist_satellite.echo_show_8_630d_voice_assistant_assist_satellite`
+
+
+    → `esphome.echo_show_8_630d_voice_assistant_webview_command`
+
+
+    Cooking context is stored per area in Saver (for example
+    `kitchen_hellofresh_active_recipe_id`). Area comes from Assist location context,
+    or from the satellite’s assigned area when omitted.
+
+
     ## Requirements
 
+
+    - [Saver](https://github.com/PiotrMachowski/Home-Assistant-custom-components-Saver)
+      installed via HACS
 
     - Ava with Advanced Control / browser commands enabled
 
@@ -21,17 +40,11 @@ blueprint:
     ## Setup
 
 
-    1. Create three helpers (once):
+    1. Install and set up the Saver integration.
 
-       - `input_text` for the active recipe id
+    2. Create one script from this blueprint (works for all Ava satellites).
 
-       - `input_number` for the active step (min 1)
-
-       - `input_text` for the active recipe name
-
-    2. Create a script from this blueprint. Select those helpers and your Ava
-       ESPHome action, for example
-       `esphome.echo_show_8_630d_voice_assistant_webview_command`.
+       Optionally set `default_satellite` / `default_area` for Dev Tools testing.
 
     3. Expose the script to Assist.
 
@@ -45,21 +58,14 @@ blueprint:
 
 
     - "Show step 2 of creamy chicken pasta" → resolve `recipe_id`, then
-      `action=show` with `step=2`.
+      `action=show` with `step=2`, plus `satellite` (and `area`) from Assist context.
 
     - "Show me step 2" / "Next step" / "Go back a step" → `action=show` with
-      `step`, or `action=next` / `action=previous` using saved context.
+      `step`, or `action=next` / `action=previous` using Saver context for that area.
 
     - "What ingredients are needed in this step?" → `action=info` (omit
       `recipe_id` and `step`).
   input:
-    webview_command:
-      name: Ava webview command
-      description: >
-        ESPHome webview_command action for the Ava device, for example
-        esphome.echo_show_8_630d_voice_assistant_webview_command
-      selector:
-        text:
     size:
       name: Popup size
       default: wide
@@ -69,40 +75,41 @@ blueprint:
             - normal
             - wide
             - fullscreen
-    recipe_id_helper:
-      name: Active recipe ID helper
-      description: input_text that stores the HelloFresh recipe_id currently on screen
+    default_satellite:
+      name: Default Assist satellite
+      description: >
+        Optional fallback assist_satellite entity when Assist omits satellite (useful
+        for Developer Tools). Example:
+        assist_satellite.echo_show_8_630d_voice_assistant_assist_satellite
+      default:
       selector:
         entity:
-          domain: input_text
-    step_helper:
-      name: Active step helper
-      description: input_number that stores the 1-based step currently on screen
+          domain: assist_satellite
+    default_area:
+      name: Default area
+      description: >
+        Fallback room slug when Assist omits area and the satellite has no area
+        (for example kitchen).
+      default: kitchen
       selector:
-        entity:
-          domain: input_number
-    recipe_name_helper:
-      name: Active recipe name helper
-      description: input_text that stores the recipe name currently on screen
-      selector:
-        entity:
-          domain: input_text
+        text:
 
 mode: restart
 
 description: >
-  Show HelloFresh cooking steps on a kitchen display and answer questions about
-  the recipe currently on that screen. Arguments: action (required), recipe_id
-  (optional), step (optional, 1-based). Actions: "show" displays a step; "next"
-  and "previous" move one step from the on-screen recipe; "info" answers questions
-  about the loaded recipe/step. For a new or named recipe, resolve recipe_id with
-  HelloFresh tools (SearchHelloFreshRecipes, GetHelloFreshDeliverySummary, or
-  GetHelloFreshRecipe), then call action="show" with that recipe_id and step
-  (default 1). For "show me step 2" on the current recipe, use action="show" and
-  step=2 (omit recipe_id). For "next step", "move on", or "previous step" / "go
-  back", use action="next" or "previous" and omit step. Use action="info" for
-  ingredients, utensils, instructions, timers, or "this recipe/this step". Do not
-  invent recipe_ids. Prefer this tool over reading helpers. Speak the tool response.
+  Show HelloFresh cooking steps on the Ava display for the current Assist
+  satellite and answer questions about the recipe on screen. Arguments: action
+  (required), satellite (current assist_satellite entity_id), area (optional),
+  recipe_id (optional), step (optional, 1-based). Always set satellite from the
+  Assist device handling this request. Always set area from conversation location
+  when known; otherwise the script uses the satellite’s area. User need not name
+  a room. Use action="show" to display a step; "next"/"previous" to move one step
+  in that area’s saved recipe; "info" for questions about the loaded recipe/step.
+  For a new recipe, resolve recipe_id with HelloFresh tools
+  (SearchHelloFreshRecipes, GetHelloFreshDeliverySummary, GetHelloFreshRecipe),
+  then call action="show" with recipe_id, step (default 1), satellite, and area.
+  For the current recipe use action="show" with step only, or next/previous
+  without step. Do not invent recipe_ids. Speak the tool response.
 
 fields:
   action:
@@ -118,6 +125,23 @@ fields:
           - next
           - previous
           - info
+  satellite:
+    name: Assist satellite
+    description: >-
+      Current assist_satellite entity_id for this request. Always set from Assist
+      context; used to derive the Ava webview_command.
+    required: false
+    selector:
+      entity:
+        domain: assist_satellite
+  area:
+    name: Area
+    description: >-
+      Current Assist area/location for this request (slug). Always set from
+      conversation context; user need not name the room.
+    required: false
+    selector:
+      text:
   recipe_id:
     name: Recipe ID
     description: >-
@@ -139,21 +163,58 @@ fields:
 
 sequence:
   - variables:
-      recipe_id_helper: !input recipe_id_helper
-      step_helper: !input step_helper
-      recipe_name_helper: !input recipe_name_helper
-      webview_command: !input webview_command
       popup_size: !input size
+      default_area: !input default_area
+      default_satellite: !input default_satellite
       requested_action: "{{ action | default('show') | string | lower | trim }}"
+      effective_satellite: >-
+        {% set from_field = satellite | default('', true) | string | trim %}
+        {%- if from_field not in ['', 'none', 'None'] -%}
+        {{- from_field -}}
+        {%- else -%}
+        {{- default_satellite | default('', true) | string | trim -}}
+        {%- endif -%}
+      webview_command: >-
+        {%- set sat = effective_satellite -%}
+        {%- if sat in ['', 'none', 'None'] -%}
+        {%- else -%}
+        {%- set oid = sat.split('.')[1] if '.' in sat else sat -%}
+        {{- 'esphome.' ~ (oid | regex_replace('_assist_satellite$', '')) ~ '_webview_command' -}}
+        {%- endif -%}
+      area_from_satellite: >-
+        {%- if effective_satellite not in ['', 'none', 'None'] -%}
+        {{- area_name(effective_satellite) | default('', true) -}}
+        {%- endif -%}
+      area_slug: >-
+        {%- set raw = area | default(area_from_satellite, true) | default(default_area, true) | string | trim | lower -%}
+        {{- raw | regex_replace('[^a-z0-9]+', '_') | regex_replace('^_|_$', '') -}}
+
+  - if:
+      - condition: template
+        value_template: "{{ area_slug in ['', 'none', 'None', 'unknown', 'unavailable'] }}"
+    then:
+      - variables:
+          voice_response:
+            response: >
+              No area available for cooking context. Pass area from the current
+              Assist location, or set default_area on the script.
+      - stop: "{{ voice_response.response }}"
+        response_variable: voice_response
+
+  - variables:
+      saver_recipe_id_key: "{{ area_slug }}_hellofresh_active_recipe_id"
+      saver_step_key: "{{ area_slug }}_hellofresh_active_step"
+      saver_recipe_name_key: "{{ area_slug }}_hellofresh_active_recipe_name"
       stored_step: >-
-        {%- set stored = states(step_helper) -%}
-        {{- stored | int(1) if stored not in ['unknown', 'unavailable', '', 'none', 'None'] else 1 -}}
+        {%- set stored = saver.variable(area_slug ~ '_hellofresh_active_step') -%}
+        {{- stored | int(1) if stored not in [none, '', 'none', 'None'] else 1 -}}
       effective_recipe_id: >-
         {% set from_field = recipe_id | default('', true) | string | trim %}
         {%- if from_field not in ['', 'none', 'None'] -%}
         {{- from_field -}}
         {%- else -%}
-        {{- states(recipe_id_helper) | default('', true) | string | trim -}}
+        {%- set stored = saver.variable(area_slug ~ '_hellofresh_active_recipe_id') -%}
+        {{- stored | default('', true) | string | trim -}}
         {%- endif -%}
       requested_step: >-
         {% set from_field = step | default(none, true) %}
@@ -170,8 +231,9 @@ sequence:
       - variables:
           voice_response:
             response: >
-              No recipe loaded. Resolve a HelloFresh recipe_id with HelloFresh
-              tools, then call again with action=show and that recipe_id.
+              No recipe loaded for {{ area_slug }}. Resolve a HelloFresh recipe_id
+              with HelloFresh tools, then call again with action=show and that
+              recipe_id.
       - stop: "{{ voice_response.response }}"
         response_variable: voice_response
 
@@ -268,7 +330,8 @@ sequence:
           - variables:
               voice_response:
                 response: >
-                  {{ name }} — step {{ step_number }} of {{ step_count }}.
+                  {{ name }} — step {{ step_number }} of {{ step_count }}
+                  ({{ area_slug }}).
                   Instructions: {{ instructions }}
                   {% if utensils | trim %}
                   Utensils: {{ utensils }}.
@@ -279,20 +342,29 @@ sequence:
           - stop: "{{ voice_response.response }}"
             response_variable: voice_response
     default:
-      - action: input_text.set_value
-        target:
-          entity_id: "{{ recipe_id_helper }}"
+      - if:
+          - condition: template
+            value_template: "{{ webview_command in ['', 'none', 'None'] }}"
+        then:
+          - variables:
+              voice_response:
+                response: >
+                  No Assist satellite available to target an Ava display. Pass
+                  satellite from Assist context, or set default_satellite on the
+                  script.
+          - stop: "{{ voice_response.response }}"
+            response_variable: voice_response
+      - action: saver.set_variable
         data:
+          name: "{{ saver_recipe_id_key }}"
           value: "{{ effective_recipe_id }}"
-      - action: input_number.set_value
-        target:
-          entity_id: "{{ step_helper }}"
+      - action: saver.set_variable
         data:
+          name: "{{ saver_step_key }}"
           value: "{{ step_number }}"
-      - action: input_text.set_value
-        target:
-          entity_id: "{{ recipe_name_helper }}"
+      - action: saver.set_variable
         data:
+          name: "{{ saver_recipe_name_key }}"
           value: "{{ name }}"
       - variables:
           popup_style: >-
@@ -334,6 +406,7 @@ sequence:
       - variables:
           voice_response:
             response: >
-              Showing step {{ step_number }} of {{ step_count }} for {{ name }}.
+              Showing step {{ step_number }} of {{ step_count }} for {{ name }}
+              in {{ area_slug }}.
       - stop: "{{ voice_response.response }}"
         response_variable: voice_response
