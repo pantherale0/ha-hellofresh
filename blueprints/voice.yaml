@@ -1,0 +1,339 @@
+blueprint:
+  name: HelloFresh Recipe Step Display
+  domain: script
+  source_url: https://github.com/pantherale0/ha-hellofresh/blob/main/blueprints/voice.yaml
+  author: pantherale0
+  description: >
+    Show HelloFresh cooking steps on an Ava display (via webview_command + Browser
+    Mod) and answer follow-up questions about the recipe currently on screen.
+
+
+    ## Requirements
+
+
+    - Ava with Advanced Control / browser commands enabled
+
+    - Ava browser showing a Home Assistant dashboard with Browser Mod loaded
+
+    - Browser Mod installed in Home Assistant
+
+
+    ## Setup
+
+
+    1. Create three helpers (once):
+
+       - `input_text` for the active recipe id
+
+       - `input_number` for the active step (min 1)
+
+       - `input_text` for the active recipe name
+
+    2. Create a script from this blueprint. Select those helpers and your Ava
+       ESPHome action, for example
+       `esphome.echo_show_8_630d_voice_assistant_webview_command`.
+
+    3. Expose the script to Assist.
+
+    4. Enable the HelloFresh LLM API on your conversation agent.
+
+    5. Keep the script description below — Assist uses it to decide when and how
+       to call this tool. Do not clear it when renaming the script.
+
+
+    ## Example voice use
+
+
+    - "Show step 2 of creamy chicken pasta" → resolve `recipe_id`, then
+      `action=show` with `step=2`.
+
+    - "Show me step 2" / "Next step" / "Go back a step" → `action=show` with
+      `step`, or `action=next` / `action=previous` using saved context.
+
+    - "What ingredients are needed in this step?" → `action=info` (omit
+      `recipe_id` and `step`).
+  input:
+    webview_command:
+      name: Ava webview command
+      description: >
+        ESPHome webview_command action for the Ava device, for example
+        esphome.echo_show_8_630d_voice_assistant_webview_command
+      selector:
+        text:
+    size:
+      name: Popup size
+      default: wide
+      selector:
+        select:
+          options:
+            - normal
+            - wide
+            - fullscreen
+    recipe_id_helper:
+      name: Active recipe ID helper
+      description: input_text that stores the HelloFresh recipe_id currently on screen
+      selector:
+        entity:
+          domain: input_text
+    step_helper:
+      name: Active step helper
+      description: input_number that stores the 1-based step currently on screen
+      selector:
+        entity:
+          domain: input_number
+    recipe_name_helper:
+      name: Active recipe name helper
+      description: input_text that stores the recipe name currently on screen
+      selector:
+        entity:
+          domain: input_text
+
+mode: restart
+
+description: >
+  Show HelloFresh cooking steps on a kitchen display and answer questions about
+  the recipe currently on that screen. Arguments: action (required), recipe_id
+  (optional), step (optional, 1-based). Actions: "show" displays a step; "next"
+  and "previous" move one step from the on-screen recipe; "info" answers questions
+  about the loaded recipe/step. For a new or named recipe, resolve recipe_id with
+  HelloFresh tools (SearchHelloFreshRecipes, GetHelloFreshDeliverySummary, or
+  GetHelloFreshRecipe), then call action="show" with that recipe_id and step
+  (default 1). For "show me step 2" on the current recipe, use action="show" and
+  step=2 (omit recipe_id). For "next step", "move on", or "previous step" / "go
+  back", use action="next" or "previous" and omit step. Use action="info" for
+  ingredients, utensils, instructions, timers, or "this recipe/this step". Do not
+  invent recipe_ids. Prefer this tool over reading helpers. Speak the tool response.
+
+fields:
+  action:
+    name: Action
+    description: >-
+      Required. show=display a step; next/previous=move one step; info=answer
+      questions about the loaded recipe/step.
+    required: true
+    selector:
+      select:
+        options:
+          - show
+          - next
+          - previous
+          - info
+  recipe_id:
+    name: Recipe ID
+    description: >-
+      HelloFresh recipe id from HelloFresh search/delivery tools. Omit to use the
+      recipe already on screen.
+    required: false
+    selector:
+      text:
+  step:
+    name: Step
+    description: >-
+      Absolute 1-based step for action=show or info. Omit for next/previous and
+      when keeping the on-screen step.
+    required: false
+    selector:
+      number:
+        min: 1
+        mode: box
+
+sequence:
+  - variables:
+      recipe_id_helper: !input recipe_id_helper
+      step_helper: !input step_helper
+      recipe_name_helper: !input recipe_name_helper
+      webview_command: !input webview_command
+      popup_size: !input size
+      requested_action: "{{ action | default('show') | string | lower | trim }}"
+      stored_step: >-
+        {%- set stored = states(step_helper) -%}
+        {{- stored | int(1) if stored not in ['unknown', 'unavailable', '', 'none', 'None'] else 1 -}}
+      effective_recipe_id: >-
+        {% set from_field = recipe_id | default('', true) | string | trim %}
+        {%- if from_field not in ['', 'none', 'None'] -%}
+        {{- from_field -}}
+        {%- else -%}
+        {{- states(recipe_id_helper) | default('', true) | string | trim -}}
+        {%- endif -%}
+      requested_step: >-
+        {% set from_field = step | default(none, true) %}
+        {%- if from_field not in [none, '', 'none', 'None'] -%}
+        {{- from_field | int(1) -}}
+        {%- else -%}
+        {{- none -}}
+        {%- endif -%}
+
+  - if:
+      - condition: template
+        value_template: "{{ effective_recipe_id in ['', 'unknown', 'unavailable', 'none', 'None'] }}"
+    then:
+      - variables:
+          voice_response:
+            response: >
+              No recipe loaded. Resolve a HelloFresh recipe_id with HelloFresh
+              tools, then call again with action=show and that recipe_id.
+      - stop: "{{ voice_response.response }}"
+        response_variable: voice_response
+
+  - action: hellofresh.get_recipe
+    data:
+      recipe_id: "{{ effective_recipe_id }}"
+    response_variable: recipe_response
+
+  - variables:
+      recipe: >-
+        {{ recipe_response.recipe if recipe_response.recipe is defined else recipe_response }}
+      steps: "{{ recipe.steps | default([]) }}"
+      step_count: "{{ steps | length }}"
+      name: "{{ recipe.name | default('HelloFresh recipe') }}"
+      image: "{{ recipe.image_link | default('', true) }}"
+      step_number: >-
+        {%- set count = step_count | int(0) -%}
+        {%- set current = stored_step | int(1) -%}
+        {%- if requested_action == 'next' -%}
+        {{- current + 1 -}}
+        {%- elif requested_action == 'previous' -%}
+        {{- current - 1 -}}
+        {%- elif requested_step not in [none, '', 'none', 'None'] -%}
+        {{- requested_step | int(1) -}}
+        {%- else -%}
+        {{- current -}}
+        {%- endif -%}
+
+  - if:
+      - condition: template
+        value_template: "{{ step_count | int == 0 }}"
+    then:
+      - variables:
+          voice_response:
+            response: "No cooking steps were returned for {{ name }}."
+      - stop: "{{ voice_response.response }}"
+        response_variable: voice_response
+
+  - if:
+      - condition: template
+        value_template: "{{ requested_action == 'next' and step_number | int > step_count | int }}"
+    then:
+      - variables:
+          voice_response:
+            response: >
+              Already on the last step ({{ step_count }}) for {{ name }}.
+      - stop: "{{ voice_response.response }}"
+        response_variable: voice_response
+
+  - if:
+      - condition: template
+        value_template: "{{ requested_action == 'previous' and step_number | int < 1 }}"
+    then:
+      - variables:
+          voice_response:
+            response: "Already on the first step for {{ name }}."
+      - stop: "{{ voice_response.response }}"
+        response_variable: voice_response
+
+  - variables:
+      idx: "{{ [step_number | int(1) - 1, 0] | max }}"
+      step_data: "{{ steps[idx] if step_count | int > idx | int else none }}"
+      instructions: "{{ step_data.instructions if step_data else '' }}"
+      utensils: >-
+        {%- if step_data and step_data.utensils is defined -%}
+        {{- step_data.utensils | join(', ') -}}
+        {%- endif -%}
+      ingredient_names: >-
+        {%- set ns = namespace(items=[]) -%}
+        {%- for item in recipe.ingredients | default([]) -%}
+        {%- if item.name is defined and item.name -%}
+        {%- set ns.items = ns.items + [item.name] -%}
+        {%- endif -%}
+        {%- endfor -%}
+        {{- ns.items | join(', ') -}}
+
+  - if:
+      - condition: template
+        value_template: "{{ step_data is none or step_number | int < 1 or step_number | int > step_count | int }}"
+    then:
+      - variables:
+          voice_response:
+            response: >
+              Could not find step {{ step_number }} for {{ name }}.
+              This recipe has {{ step_count }} step(s).
+      - stop: "{{ voice_response.response }}"
+        response_variable: voice_response
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ requested_action == 'info' }}"
+        sequence:
+          - variables:
+              voice_response:
+                response: >
+                  {{ name }} — step {{ step_number }} of {{ step_count }}.
+                  Instructions: {{ instructions }}
+                  {% if utensils | trim %}
+                  Utensils: {{ utensils }}.
+                  {% endif %}
+                  Recipe ingredients: {{ ingredient_names if ingredient_names else 'none listed' }}.
+                  Note: HelloFresh does not provide per-step ingredient lists; use the
+                  instructions plus the full ingredient list above.
+          - stop: "{{ voice_response.response }}"
+            response_variable: voice_response
+    default:
+      - action: input_text.set_value
+        target:
+          entity_id: "{{ recipe_id_helper }}"
+        data:
+          value: "{{ effective_recipe_id }}"
+      - action: input_number.set_value
+        target:
+          entity_id: "{{ step_helper }}"
+        data:
+          value: "{{ step_number }}"
+      - action: input_text.set_value
+        target:
+          entity_id: "{{ recipe_name_helper }}"
+        data:
+          value: "{{ name }}"
+      - variables:
+          popup_style: >-
+            {{ 'normal' if popup_size == 'normal' else (popup_size | default('wide')) }}
+          ava_command: >-
+            {%- set md = '### Step ' ~ step_number ~ ' of ' ~ step_count ~ '\n\n' ~ (instructions | default('', true)) -%}
+            {%- set ns = namespace(cards=[]) -%}
+            {%- if image | default('', true) | trim -%}
+            {%- set ns.cards = ns.cards + [{
+              'type': 'picture',
+              'image': image,
+              'alt_text': name ~ ' step ' ~ step_number
+            }] -%}
+            {%- endif -%}
+            {%- set ns.cards = ns.cards + [{
+              'type': 'markdown',
+              'content': md
+            }] -%}
+            {%- set popup_data = {
+              'title': name ~ ' — Step ' ~ step_number ~ ' of ' ~ step_count,
+              'initial_style': popup_style,
+              'content': {
+                'type': 'vertical-stack',
+                'cards': ns.cards
+              }
+            } -%}
+            {%- set eval_js =
+              "(()=>{const ha=document.querySelector('home-assistant');"
+              ~ "if(!ha){console.error('HelloFresh voice: no home-assistant element');return;}"
+              ~ "const ev=new Event('ll-custom',{bubbles:true,composed:true});"
+              ~ "ev.detail={browser_mod:{service:'browser_mod.popup',data:"
+              ~ (popup_data | tojson)
+              ~ "}};ha.dispatchEvent(ev);})();"
+            -%}
+            {{ {'eval': eval_js} | tojson }}
+      - action: "{{ webview_command }}"
+        data:
+          command: "{{ ava_command }}"
+      - variables:
+          voice_response:
+            response: >
+              Showing step {{ step_number }} of {{ step_count }} for {{ name }}.
+      - stop: "{{ voice_response.response }}"
+        response_variable: voice_response
