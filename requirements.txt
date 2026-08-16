@@ -2,4 +2,4 @@
 # These are installed by Home Assistant when the integration is loaded
 # See custom_components/hellofresh/manifest.json for the authoritative list
 
-pyhellofresh==0.1.0
+pyhellofresh==0.1.1
