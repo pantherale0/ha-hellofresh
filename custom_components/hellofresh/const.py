@@ -16,6 +16,8 @@ PARALLEL_UPDATES: Final = 1
 
 DEFAULT_UPDATE_INTERVAL_HOURS: Final = 1.0
 DEFAULT_COUNTRY: Final = "GB"
+# Refresh slightly before JWT expiry so service/LLM calls do not hit a 401 first.
+TOKEN_REFRESH_SKEW_SECONDS: Final = 120.0
 
 CONF_ACCESS_TOKEN: Final = "access_token"
 CONF_REFRESH_TOKEN: Final = "refresh_token"

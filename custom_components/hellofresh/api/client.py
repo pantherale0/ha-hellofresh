@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
@@ -21,6 +22,7 @@ from pyhellofresh import (
 )
 
 from custom_components.hellofresh.const import LOGGER
+from custom_components.hellofresh.utils.tokens import access_token_needs_refresh
 from custom_components.hellofresh.utils.weeks import delivery_range, resolve_next_week
 
 if TYPE_CHECKING:
@@ -54,6 +56,7 @@ class HelloFreshApiClient:
             locale=locale,
             base_url=base_url,
         )
+        self._refresh_lock = asyncio.Lock()
 
     @property
     def client(self) -> HelloFreshClient:
@@ -114,7 +117,27 @@ class HelloFreshApiClient:
 
     async def async_refresh_access_token(self) -> TokenResponse:
         """Refresh the access token using the stored refresh token."""
-        return await self._client.refresh_access_token()
+        async with self._refresh_lock:
+            return await self._client.refresh_access_token()
+
+    async def async_ensure_fresh_token(self) -> bool:
+        """
+        Refresh the access token when it is missing or near expiry.
+
+        Returns True when a refresh was performed. Concurrent callers share one refresh.
+        """
+        if not access_token_needs_refresh(self.access_token):
+            return False
+        if not self.refresh_token:
+            raise HelloFreshAuthenticationError("No refresh token available.")
+        async with self._refresh_lock:
+            if not access_token_needs_refresh(self.access_token):
+                return False
+            if not self.refresh_token:
+                raise HelloFreshAuthenticationError("No refresh token available.")
+            LOGGER.debug("Refreshing HelloFresh access token before API call")
+            await self._client.refresh_access_token()
+            return True
 
     async def async_get_profile(self) -> Profile:
         """Fetch the customer profile."""

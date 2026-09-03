@@ -76,6 +76,7 @@ async def async_setup_entry(
         client=client,
         integration=async_get_loaded_integration(hass, entry.domain),
         coordinator=coordinator,
+        options=dict(entry.options),
     )
 
     await coordinator.async_config_entry_first_refresh()
@@ -103,5 +104,13 @@ async def async_reload_entry(
     hass: HomeAssistant,
     entry: HelloFreshConfigEntry,
 ) -> None:
-    """Reload config entry."""
+    """Reload when options change; ignore token-only data updates."""
+    try:
+        runtime = entry.runtime_data
+    except AttributeError:
+        return
+    if runtime is None:
+        return
+    if dict(entry.options) == dict(runtime.options):
+        return
     await hass.config_entries.async_reload(entry.entry_id)
