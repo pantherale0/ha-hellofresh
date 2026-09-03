@@ -32,12 +32,12 @@ Uncomment and customize these badges if you want to use them:
 
 **This integration will set up the following platforms.**
 
-| Platform        | Description                                                         |
-| --------------- | ------------------------------------------------------------------- |
-| `sensor`        | Account credit, household, meals, cart total, subscription details  |
-| `binary_sensor` | API connectivity and meals-ready status                             |
-| `calendar`      | Delivery weeks from HelloFresh schedule history                     |
-| `button`        | Force a data refresh                                                |
+| Platform        | Description                                                        |
+| --------------- | ------------------------------------------------------------------ |
+| `sensor`        | Account credit, household, meals, cart total, subscription details |
+| `binary_sensor` | API connectivity and meals-ready status                            |
+| `calendar`      | Delivery weeks from HelloFresh schedule history                    |
+| `button`        | Force a data refresh                                               |
 
 Powered by [`pyhellofresh`](https://github.com/pantherale0/pyhellofresh).
 
@@ -172,11 +172,11 @@ This integration registers a Home Assistant [LLM API](https://developers.home-as
 
 Tools exposed to conversation agents (and automatically over MCP when the MCP Server integration is set up):
 
-| Tool | Purpose |
-| ---- | ------- |
+| Tool                           | Purpose                                         |
+| ------------------------------ | ----------------------------------------------- |
 | `GetHelloFreshDeliverySummary` | Next week, selected meals, credit, subscription |
-| `SearchHelloFreshRecipes` | Keyword recipe search |
-| `GetHelloFreshRecipe` | Full recipe details by `recipe_id` |
+| `SearchHelloFreshRecipes`      | Keyword recipe search                           |
+| `GetHelloFreshRecipe`          | Full recipe details by `recipe_id`              |
 
 In a conversation agent that supports selecting LLM APIs, enable the **HelloFresh** API for that agent. With [MCP Server](https://www.home-assistant.io/integrations/mcp_server/), the API is available at `/api/mcp/hellofresh-<entry_id>`.
 
@@ -184,13 +184,13 @@ In a conversation agent that supports selecting LLM APIs, enable the **HelloFres
 
 ### During Setup
 
-| Name          | Required | Description                                      |
-| ------------- | -------- | ------------------------------------------------ |
-| Email         | Yes\*    | HelloFresh account email (\*magic-link flow)     |
-| Country       | Yes      | Regional HelloFresh market                       |
-| Magic link    | Yes\*    | URL from the email (\*or code)                   |
-| Access token  | Yes\*    | Bearer token (\*token flow only)                 |
-| Refresh token | No       | Long-lived refresh token (recommended)           |
+| Name          | Required | Description                                  |
+| ------------- | -------- | -------------------------------------------- |
+| Email         | Yes\*    | HelloFresh account email (\*magic-link flow) |
+| Country       | Yes      | Regional HelloFresh market                   |
+| Magic link    | Yes\*    | URL from the email (\*or code)               |
+| Access token  | Yes\*    | Bearer token (\*token flow only)             |
+| Refresh token | No       | Long-lived refresh token (recommended)       |
 
 ### After Setup (Options)
 
@@ -379,4 +379,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 [releases-shield]: https://img.shields.io/github/release/pantherale0/ha-hellofresh.svg?style=for-the-badge
 [releases]: https://github.com/pantherale0/ha-hellofresh/releases
 [user_profile]: https://github.com/pantherale0
-
