@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from typing import NoReturn, TypeVar
+
+from pyhellofresh import HelloFreshAuthenticationError
+
 from custom_components.hellofresh.api import HelloFreshApiClient
 from custom_components.hellofresh.const import CONF_CONFIG_ENTRY_ID, DOMAIN
 from custom_components.hellofresh.data import HelloFreshConfigEntry
+from custom_components.hellofresh.utils.tokens import persist_client_tokens
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
+
+T = TypeVar("T")
 
 
 def resolve_entry(
@@ -43,16 +51,51 @@ def resolve_entry_from_service(hass: HomeAssistant, call: ServiceCall) -> HelloF
     return resolve_entry(hass, entry_id=call.data.get(CONF_CONFIG_ENTRY_ID))
 
 
-def resolve_client(hass: HomeAssistant, call: ServiceCall) -> HelloFreshApiClient:
-    """Resolve the API client for a service call."""
-    entry = resolve_entry_from_service(hass, call)
-    return entry.runtime_data.client
+def _raise_service_auth_failed(err: HelloFreshAuthenticationError) -> NoReturn:
+    """Raise the translated service authentication error."""
+    raise HomeAssistantError(
+        translation_domain="hellofresh",
+        translation_key="service_auth_failed",
+    ) from err
 
 
-def resolve_client_for_entry(
+async def async_call_authenticated(
     hass: HomeAssistant,
-    *,
-    entry_id: str | None = None,
-) -> HelloFreshApiClient:
-    """Resolve the API client for an optional config entry id."""
-    return resolve_entry(hass, entry_id=entry_id).runtime_data.client
+    entry: HelloFreshConfigEntry,
+    operation: Callable[[HelloFreshApiClient], Awaitable[T]],
+) -> T:
+    """
+    Run an API operation after ensuring tokens are valid, then persist them.
+
+    pyhellofresh does not refresh tokens for unauthenticated-or-optional endpoints
+    such as recipe search. This helper refreshes proactively and retries once on 401.
+    """
+    client = entry.runtime_data.client
+    try:
+        try:
+            await client.async_ensure_fresh_token()
+        except HelloFreshAuthenticationError as err:
+            _raise_service_auth_failed(err)
+
+        try:
+            result = await operation(client)
+        except HelloFreshAuthenticationError as err:
+            if not client.refresh_token:
+                _raise_service_auth_failed(err)
+            try:
+                await client.async_refresh_access_token()
+                result = await operation(client)
+            except HelloFreshAuthenticationError as retry_err:
+                _raise_service_auth_failed(retry_err)
+        return result
+    finally:
+        persist_client_tokens(hass, entry, client)
+
+
+async def async_call_authenticated_from_service(
+    hass: HomeAssistant,
+    call: ServiceCall,
+    operation: Callable[[HelloFreshApiClient], Awaitable[T]],
+) -> T:
+    """Run an authenticated API operation for a service call."""
+    return await async_call_authenticated(hass, resolve_entry_from_service(hass, call), operation)

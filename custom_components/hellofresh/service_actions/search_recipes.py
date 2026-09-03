@@ -8,7 +8,7 @@ from pyhellofresh import HelloFreshError
 
 from custom_components.hellofresh.api import recipe_to_dict
 from custom_components.hellofresh.const import CONF_QUERY, CONF_SKIP, CONF_TAKE, LOGGER
-from custom_components.hellofresh.service_actions.helpers import resolve_client
+from custom_components.hellofresh.service_actions.helpers import async_call_authenticated_from_service
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 from homeassistant.exceptions import HomeAssistantError
 
@@ -21,9 +21,12 @@ async def async_handle_search_recipes(
     query = call.data[CONF_QUERY]
     take = int(call.data.get(CONF_TAKE, 20))
     skip = int(call.data.get(CONF_SKIP, 0))
-    client = resolve_client(hass, call)
     try:
-        recipes = await client.async_search_recipes(query, take=take, skip=skip)
+        recipes = await async_call_authenticated_from_service(
+            hass,
+            call,
+            lambda client: client.async_search_recipes(query, take=take, skip=skip),
+        )
     except HelloFreshError as err:
         LOGGER.exception("search_recipes failed for %s", query)
         raise HomeAssistantError(

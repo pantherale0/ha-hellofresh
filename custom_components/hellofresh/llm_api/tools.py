@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from pyhellofresh import HelloFreshAuthenticationError, HelloFreshError
+from pyhellofresh import HelloFreshError
 import voluptuous as vol
 
 from custom_components.hellofresh.api import recipe_to_dict
 from custom_components.hellofresh.const import CONF_QUERY, CONF_RECIPE_ID, CONF_SKIP, CONF_TAKE, LOGGER
-from custom_components.hellofresh.service_actions.helpers import resolve_client_for_entry, resolve_entry
+from custom_components.hellofresh.service_actions.helpers import async_call_authenticated, resolve_entry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
@@ -48,14 +48,13 @@ class SearchHelloFreshRecipesTool(llm.Tool):
         query = str(tool_input.tool_args[CONF_QUERY])
         take = int(tool_input.tool_args.get(CONF_TAKE, 10))
         skip = int(tool_input.tool_args.get(CONF_SKIP, 0))
-        client = resolve_client_for_entry(hass, entry_id=self._entry_id)
+        entry = resolve_entry(hass, entry_id=self._entry_id)
         try:
-            recipes = await client.async_search_recipes(query, take=take, skip=skip)
-        except HelloFreshAuthenticationError as err:
-            raise HomeAssistantError(
-                translation_domain="hellofresh",
-                translation_key="service_auth_failed",
-            ) from err
+            recipes = await async_call_authenticated(
+                hass,
+                entry,
+                lambda client: client.async_search_recipes(query, take=take, skip=skip),
+            )
         except HelloFreshError as err:
             LOGGER.exception("LLM search_recipes failed for %s", query)
             raise HomeAssistantError(
@@ -102,14 +101,13 @@ class GetHelloFreshRecipeTool(llm.Tool):
     ) -> JsonObjectType:
         """Fetch a recipe and return it as JSON."""
         recipe_id = str(tool_input.tool_args[CONF_RECIPE_ID])
-        client = resolve_client_for_entry(hass, entry_id=self._entry_id)
+        entry = resolve_entry(hass, entry_id=self._entry_id)
         try:
-            recipe = await client.async_get_recipe(recipe_id)
-        except HelloFreshAuthenticationError as err:
-            raise HomeAssistantError(
-                translation_domain="hellofresh",
-                translation_key="service_auth_failed",
-            ) from err
+            recipe = await async_call_authenticated(
+                hass,
+                entry,
+                lambda client: client.async_get_recipe(recipe_id),
+            )
         except HelloFreshError as err:
             LOGGER.exception("LLM get_recipe failed for %s", recipe_id)
             raise HomeAssistantError(

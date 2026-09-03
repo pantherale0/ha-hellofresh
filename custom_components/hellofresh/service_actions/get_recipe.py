@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from pyhellofresh import HelloFreshAuthenticationError, HelloFreshError
+from pyhellofresh import HelloFreshError
 
 from custom_components.hellofresh.api import recipe_to_dict
 from custom_components.hellofresh.const import CONF_RECIPE_ID, LOGGER
-from custom_components.hellofresh.service_actions.helpers import resolve_client
+from custom_components.hellofresh.service_actions.helpers import async_call_authenticated_from_service
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 from homeassistant.exceptions import HomeAssistantError
 
@@ -19,14 +19,12 @@ async def async_handle_get_recipe(
 ) -> ServiceResponse:
     """Fetch a recipe and return it as a service response."""
     recipe_id = call.data[CONF_RECIPE_ID]
-    client = resolve_client(hass, call)
     try:
-        recipe = await client.async_get_recipe(recipe_id)
-    except HelloFreshAuthenticationError as err:
-        raise HomeAssistantError(
-            translation_domain="hellofresh",
-            translation_key="service_auth_failed",
-        ) from err
+        recipe = await async_call_authenticated_from_service(
+            hass,
+            call,
+            lambda client: client.async_get_recipe(recipe_id),
+        )
     except HelloFreshError as err:
         LOGGER.exception("get_recipe failed for %s", recipe_id)
         raise HomeAssistantError(
