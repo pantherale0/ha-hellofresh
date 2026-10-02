@@ -22,4 +22,5 @@ async def async_setup_entry(
 ) -> None:
     """Set up HelloFresh calendar."""
     coordinator = entry.runtime_data.coordinator
-    async_add_entities([HelloFreshDeliveryCalendar(coordinator)])
+    if coordinator.data.get("active_subscription") is not None:
+        async_add_entities([HelloFreshDeliveryCalendar(coordinator)])

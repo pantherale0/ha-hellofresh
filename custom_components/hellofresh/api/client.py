@@ -194,43 +194,48 @@ class HelloFreshApiClient:
         profile = await self.async_get_profile()
         customer_info = await self.async_get_customer_info()
         subscriptions = await self.async_get_subscriptions()
+        active_subscription = _pick_active_subscription(subscriptions, customer_info)
         customer_id = str(customer_info.get("uuid") or customer_info.get("id") or "")
         balance = await self.async_get_balance(customer_id or None)
 
-        range_start, range_end = delivery_range()
-        past_deliveries = await self.async_get_past_deliveries(range_start, range_end)
-        next_week = resolve_next_week(
-            api_next_week=past_deliveries.next_week,
-            week_ids=[week.week for week in past_deliveries.weeks],
-        )
-        LOGGER.debug(
-            "Deliveries: weeks=%s api_next=%s resolved_next=%s range=%s..%s",
-            len(past_deliveries.weeks),
-            past_deliveries.next_week,
-            next_week,
-            range_start,
-            range_end,
-        )
-
+        past_deliveries: PastDeliveries | None = None
+        next_week: str | None = None
         menu: WeeklyMenu | None = None
         cart: CartPrice | None = None
-        if next_week:
-            try:
-                menu = await self.async_get_menu(next_week)
-            except HelloFreshResponseError as err:
-                LOGGER.warning("Unable to fetch menu for %s: %s", next_week, err)
-            try:
-                cart = await self.async_get_cart_price(next_week)
-            except HelloFreshResponseError as err:
-                LOGGER.warning("Unable to fetch cart for %s: %s", next_week, err)
+        selected_meals: list[dict[str, Any]] = []
+        if active_subscription is not None:
+            range_start, range_end = delivery_range()
+            past_deliveries = await self.async_get_past_deliveries(range_start, range_end)
+            next_week = resolve_next_week(
+                api_next_week=past_deliveries.next_week,
+                week_ids=[week.week for week in past_deliveries.weeks],
+            )
+            LOGGER.debug(
+                "Deliveries: weeks=%s api_next=%s resolved_next=%s range=%s..%s",
+                len(past_deliveries.weeks),
+                past_deliveries.next_week,
+                next_week,
+                range_start,
+                range_end,
+            )
 
-        selected_week = next(
-            (week for week in past_deliveries.weeks if week.week == next_week),
-            None,
-        )
-        selected_meals = selected_week.meals if selected_week else []
+            if next_week:
+                try:
+                    menu = await self.async_get_menu(next_week)
+                except HelloFreshResponseError as err:
+                    LOGGER.warning("Unable to fetch menu for %s: %s", next_week, err)
+                try:
+                    cart = await self.async_get_cart_price(next_week)
+                except HelloFreshResponseError as err:
+                    LOGGER.warning("Unable to fetch cart for %s: %s", next_week, err)
 
-        active_subscription = _pick_active_subscription(subscriptions, customer_info)
+            selected_week = next(
+                (week for week in past_deliveries.weeks if week.week == next_week),
+                None,
+            )
+            selected_meals = selected_week.meals if selected_week else []
+        else:
+            LOGGER.debug("No active HelloFresh subscription; skipping subscription data")
 
         return {
             "profile": profile,
@@ -262,6 +267,7 @@ def _pick_active_subscription(
         for sub in subscriptions:
             if str(sub.get("id") or sub.get("subscriptionId") or "") == str(active_id):
                 return sub
-    if subscriptions:
-        return subscriptions[0]
+    # A cancelled account may still return historical subscriptions. Without an
+    # active id, treating the first item as active causes subscription-scoped
+    # endpoints to return 403 ("request has no subscription id").
     return None

@@ -22,4 +22,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up HelloFresh binary sensors."""
     coordinator = entry.runtime_data.coordinator
-    async_add_entities(HelloFreshBinarySensor(coordinator, description) for description in ENTITY_DESCRIPTIONS)
+    has_subscription = coordinator.data.get("active_subscription") is not None
+    async_add_entities(
+        HelloFreshBinarySensor(coordinator, description)
+        for description in ENTITY_DESCRIPTIONS
+        if has_subscription or description.key != "meals_ready"
+    )

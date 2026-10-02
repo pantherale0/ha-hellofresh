@@ -244,6 +244,18 @@ ENTITY_DESCRIPTIONS: tuple[HelloFreshSensorEntityDescription, ...] = (
     ),
 )
 
+SUBSCRIPTION_ENTITY_KEYS = frozenset(
+    {
+        "next_delivery_week",
+        "selected_meals",
+        "available_meals",
+        "cart_grand_total",
+        "subscription_status",
+        "subscription_plan",
+        "active_subscription_id",
+    }
+)
+
 
 class HelloFreshSensor(SensorEntity, HelloFreshEntity):
     """HelloFresh sensor entity."""

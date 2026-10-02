@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from custom_components.hellofresh.const import PARALLEL_UPDATES
-from custom_components.hellofresh.sensor.account import ENTITY_DESCRIPTIONS, HelloFreshSensor
+from custom_components.hellofresh.sensor.account import (
+    ENTITY_DESCRIPTIONS,
+    SUBSCRIPTION_ENTITY_KEYS,
+    HelloFreshSensor,
+)
 
 if TYPE_CHECKING:
     from custom_components.hellofresh.data import HelloFreshConfigEntry
@@ -22,4 +26,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up HelloFresh sensors."""
     coordinator = entry.runtime_data.coordinator
-    async_add_entities(HelloFreshSensor(coordinator, description) for description in ENTITY_DESCRIPTIONS)
+    has_subscription = coordinator.data.get("active_subscription") is not None
+    async_add_entities(
+        HelloFreshSensor(coordinator, description)
+        for description in ENTITY_DESCRIPTIONS
+        if has_subscription or description.key not in SUBSCRIPTION_ENTITY_KEYS
+    )
